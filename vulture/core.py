@@ -571,12 +571,13 @@ class Vulture(ast.NodeVisitor):
             if (
                 isinstance(superclass, ast.Name)
                 and superclass.id == class_name
-                or isinstance(superclass, ast.Attribute)
+            ) or (
+                isinstance(superclass, ast.Attribute)
                 and superclass.attr == class_name
             ):
                 return True
-        return False    
-    
+        return False
+
     def visit_ClassDef(self, node):
         for decorator in node.decorator_list:
             if _match(

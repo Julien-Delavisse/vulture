@@ -883,6 +883,7 @@ match color:
     check(v.unused_classes, [])
     check(v.unused_vars, ["BLUE"])
 
+
 def test_protocol(v):
     v.scan(
         """\
