@@ -7,6 +7,8 @@ from fnmatch import fnmatch, fnmatchcase
 from functools import partial
 from pathlib import Path
 
+import ast_scope
+
 from vulture import lines, noqa, utils
 from vulture.config import InputError, make_config
 from vulture.reachability import Reachability
@@ -254,6 +256,11 @@ class Vulture(ast.NodeVisitor):
             )
             self.exit_code = ExitCode.InvalidInput
         else:
+            # ast_scope doesn't always parse, so need to handle errors.
+            try:
+                self.scope_info = ast_scope.annotate(node)
+            except Exception:
+                self.scope_info = None
             # When parsing type comments, visiting can throw SyntaxError.
             try:
                 self.visit(node)
@@ -471,6 +478,15 @@ class Vulture(ast.NodeVisitor):
     def visit_arg(self, node):
         """Function argument"""
         self._define_variable(node.arg, node, confidence=100)
+        if self.scope_info and node in self.scope_info:
+            scope = self.scope_info[node]
+            if isinstance(scope, ast_scope.scope.FunctionScope) and isinstance(
+                scope.parent, ast_scope.scope.ClassScope
+            ):
+                method_class = scope.parent.class_node
+                is_protocol = self._is_subclass(method_class, "Protocol")
+                if is_protocol:
+                    self.used_names.add(node.arg)
 
     def visit_AsyncFunctionDef(self, node):
         return self.visit_FunctionDef(node)
@@ -547,6 +563,20 @@ class Vulture(ast.NodeVisitor):
             and not node.keywords
         )
 
+    @staticmethod
+    def _is_subclass(node, class_name):
+        """Return True if the node is a subclass of the given class."""
+        assert isinstance(node, ast.ClassDef)
+        for superclass in node.bases:
+            if (
+                isinstance(superclass, ast.Name)
+                and superclass.id == class_name
+                or isinstance(superclass, ast.Attribute)
+                and superclass.attr == class_name
+            ):
+                return True
+        return False    
+    
     def visit_ClassDef(self, node):
         for decorator in node.decorator_list:
             if _match(
@@ -590,6 +620,12 @@ class Vulture(ast.NodeVisitor):
             self._define(
                 self.defined_methods, node.name, node, ignore=_ignore_method
             )
+            if self.scope_info and node in self.scope_info:
+                scope = self.scope_info[node]
+                if isinstance(scope, ast_scope.scope.ClassScope):
+                    method_class = scope.class_node
+                    if self._is_subclass(method_class, "Protocol"):
+                        self.used_names.add(node.name)
         else:
             self._define(
                 self.defined_funcs, node.name, node, ignore=_ignore_function
