@@ -1,6 +1,7 @@
 # 2.17 (unreleased)
 
 * Add support for Python 3.15 and drop 3.9 (Hugo van Kemenade, #416).
+* Add scoping info to handle false positives with `typing.Protocol` (pm3512, #309).
 
 # 2.16 (2026-03-25)
 
